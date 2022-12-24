@@ -41,6 +41,7 @@ class STN3d(nn.Module):
         x = self.fc3(x)
 
         # iden生成单位变换矩阵
+        # repeat 表示复制
         iden = Variable(torch.from_numpy(np.array([1, 0, 0, 0, 1, 0, 0, 0, 1]).astype(np.float32))).view(1, 9).repeat(
             batchsize, 1)
         if x.is_cuda:
