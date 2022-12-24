@@ -43,7 +43,6 @@ class STN3d(nn.Module):
         # iden生成单位变换矩阵
         # repeat 表示复制，from_numpy表示转换为tensor类型数据。
         # view 表示改变维度。
-        # add comments
         iden = Variable(torch.from_numpy(np.array([1, 0, 0, 0, 1, 0, 0, 0, 1]).astype(np.float32))).view(1, 9).repeat(
             batchsize, 1)
         if x.is_cuda:
