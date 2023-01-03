@@ -68,9 +68,9 @@ class get_model(nn.Module):
         net = F.relu(self.bns2(self.convs2(net)))
         net = F.relu(self.bns3(self.convs3(net)))
         net = self.convs4(net)
+        # x为b * d * n, 而logsoftmax只能用于二维，而且我们一般对每一行进行softmax
+        # 因此，先变成b * n * d，然后变换为-1 * d， 经过logsoftmax之后，再变回到b * n * d
         net = net.transpose(2, 1).contiguous()
-        # 现在x是bs * k * n, logsoftmax只能用于二维，而且我们一般对每一行进行softmax
-        # 因此，先变成bs * n * k，然后-1 * k， logsoftmax之后，再变回到bs * n * k
         net = F.log_softmax(net.view(-1, self.part_num), dim=-1)
         net = net.view(B, N, self.part_num)  # [B, N, 50]
 
