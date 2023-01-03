@@ -9,11 +9,11 @@ from pointnet_utils import STN3d, STNkd, feature_transform_reguliarzer
 class get_model(nn.Module):
     def __init__(self, part_num=50, normal_channel=True):
         super(get_model, self).__init__()
-        if normal_channel:
+        if normal_channel:  # 是否有法向量信息
             channel = 6
         else:
             channel = 3
-        self.part_num = part_num
+        self.part_num = part_num  # 部件类别数量，ShapeNetPart中为50(物体类别数为16)
         self.stn = STN3d(channel)
         self.conv1 = torch.nn.Conv1d(channel, 64, 1)
         self.conv2 = torch.nn.Conv1d(64, 128, 1)
@@ -25,7 +25,7 @@ class get_model(nn.Module):
         self.bn3 = nn.BatchNorm1d(128)
         self.bn4 = nn.BatchNorm1d(512)
         self.bn5 = nn.BatchNorm1d(2048)
-        self.fstn = STNkd(k=128)
+        self.fstn = STNkd(k=128)  # 特征变换矩阵为128*128
         self.convs1 = torch.nn.Conv1d(4944, 256, 1)
         self.convs2 = torch.nn.Conv1d(256, 256, 1)
         self.convs3 = torch.nn.Conv1d(256, 128, 1)
@@ -46,6 +46,7 @@ class get_model(nn.Module):
 
         point_cloud = point_cloud.transpose(2, 1)
 
+        # channel->128
         out1 = F.relu(self.bn1(self.conv1(point_cloud)))
         out2 = F.relu(self.bn2(self.conv2(out1)))
         out3 = F.relu(self.bn3(self.conv3(out2)))
@@ -55,21 +56,23 @@ class get_model(nn.Module):
         net_transformed = torch.bmm(x, trans_feat)
         net_transformed = net_transformed.transpose(2, 1)
 
-        out4 = F.relu(self.bn4(self.conv4(net_transformed)))
-        out5 = self.bn5(self.conv5(out4))
-        out_max = torch.max(out5, 2, keepdim=True)[0]
+        out4 = F.relu(self.bn4(self.conv4(net_transformed)))  # 128->512
+        out5 = self.bn5(self.conv5(out4))   # 512->2048
+        out_max = torch.max(out5, 2, keepdim=True)[0]   # 全局池化后得到2048维
         out_max = out_max.view(-1, 2048)
 
-        out_max = torch.cat([out_max,label.squeeze(1)],1)
-        expand = out_max.view(-1, 2048+16, 1).repeat(1, 1, N)
-        concat = torch.cat([expand, out1, out2, out3, out4, out5], 1)
+        out_max = torch.cat([out_max, label.squeeze(1)], 1)
+        expand = out_max.view(-1, 2048+16, 1).repeat(1, 1, N)  # 维度扩充加上16个物体类别
+        concat = torch.cat([expand, out1, out2, out3, out4, out5], 1)  # 局部特征与全局特征拼接
         net = F.relu(self.bns1(self.convs1(concat)))
         net = F.relu(self.bns2(self.convs2(net)))
         net = F.relu(self.bns3(self.convs3(net)))
         net = self.convs4(net)
         net = net.transpose(2, 1).contiguous()
+        # 现在x是bs * k * n, logsoftmax只能用于二维，而且我们一般对每一行进行softmax
+        # 因此，先变成bs * n * k，然后-1 * k， logsoftmax之后，再变回到bs * n * k
         net = F.log_softmax(net.view(-1, self.part_num), dim=-1)
-        net = net.view(B, N, self.part_num) # [B, N, 50]
+        net = net.view(B, N, self.part_num)  # [B, N, 50]
 
         return net, trans_feat
 
